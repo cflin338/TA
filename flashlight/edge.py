@@ -21,8 +21,8 @@ try:
                 GPIO.output(LED_0_PIN,GPIO.LOW)
                 cur_state = 0
             edge = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.FALLING,bouncetime=10)
-    except KeyboardInterrupt:
-        print("\nKeyboard interrupt")
-        GPIO.output(LED_0_PIN, GPIO.LOW)
-        GPIO.cleanup()
-        sys.exit()
+except KeyboardInterrupt:
+    print("\nKeyboard interrupt")
+    GPIO.output(LED_0_PIN, GPIO.LOW)
+    GPIO.cleanup()
+    sys.exit()
