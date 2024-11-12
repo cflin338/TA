@@ -6,7 +6,7 @@ LED_0_PIN = 18
 cur_state = 0
 GPIO.setwarnings(False)
 GPIO.setup(LED_0_PIN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)\
+GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 def my_callback(BUTTON_0_PIN):
     print('In rising_edge_callback')
     while GPIO.input(BUTTON_0_PIN) == GPIO.HIGH:
