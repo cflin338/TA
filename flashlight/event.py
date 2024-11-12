@@ -10,8 +10,8 @@ GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 def my_callback(BUTTON_0_PIN):
     print('In rising_edge_callback')
     while GPIO.input(BUTTON_0_PIN) == GPIO.HIGH:
-    print('abc')
-    time.sleep(0.1)
+        print('abc')
+        time.sleep(0.1)
     print('Leaving callback')
 GPIO.add_event_detect(BUTTON_0_PIN, GPIO.RISING, callback=my_callback,bouncetime =
 10)
