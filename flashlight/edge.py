@@ -1,28 +1,31 @@
 import RPi.GPIO as GPIO
-import time, sys
-GPIO.setmode(GPIO.BOARD)
+import time
+import sys
+
+# constants
 BUTTON_0_PIN = 16
 LED_0_PIN = 18
-cur_state = 0
-GPIO.setwarnings(False)
-GPIO.setup(LED_0_PIN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-GPIO.add_event_detect(BUTTON_0_PIN, GPIO.FALLING)
+
+# gpio setup
+GPIO.setmode(GPIO.BOARD)  # physical pins
+GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)  # button is pulldown
+GPIO.setup(LED_0_PIN, GPIO.OUT)  # led is output
+
+# enum for led state
+# LED_STATE = ['LED_OFF', 'LED_ON']
+# led = enumerate(LED_STATE)
+led = False
+
 try:
     while True:
-        edge = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING,bouncetime=10)
-        if edge is not None:
-            if cur_state == 0:
-                print("Light On")
-                GPIO.output(LED_0_PIN, GPIO.HIGH)
-                cur_state = 1
-            else:
-                print("Light Off")
-                GPIO.output(LED_0_PIN,GPIO.LOW)
-                cur_state = 0
-            edge = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.FALLING,bouncetime=10)
+        # wait for rising edge
+        GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+        led = not led
+        GPIO.output(LED_0_PIN, led)
+
 except KeyboardInterrupt:
-    print("\nKeyboard interrupt")
+    # cleanup enacted by ctrl+c
+    print("Got Keyboard Interrupt. Cleaning up and exiting.")
     GPIO.output(LED_0_PIN, GPIO.LOW)
     GPIO.cleanup()
     sys.exit()
