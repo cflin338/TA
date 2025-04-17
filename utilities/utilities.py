@@ -1,10 +1,12 @@
 import time
 import sys
 import os
+
 PWM_PATH = "/sys/class/pwm/pwmchip0"
+
 class HW_PWM:
     def __init__(self, frequency):
-        self.frequency = frequency
+        self.frequency = frequency 
         self.period = int(1000000000 / frequency)
         self.duty_cycle_percent = 0
         self.duty_cycle = 0
@@ -21,6 +23,7 @@ class HW_PWM:
         ##print(period_cmd)
         os.system(period_cmd)
         time.sleep(0.5)
+
         print('Set duty cycle to 0')
         duty_cycle_cmd = "echo 0 > " + PWM_PATH + "/pwm0/duty_cycle"
         #print(duty_cycle_cmd)
@@ -33,21 +36,15 @@ class HW_PWM:
         time.sleep(0.5)
 
     def set_duty_cycle(self, duty_cycle_percent):
-        # TODO: Complete this function
-        self.duty_cycle_percent = duty_cycle_percent
-        self.duty_cycle = str(int((duty_cycle_percent * self.period) / 100.0))
-
-        #if duty_cycle_percent parameter value is above 100
-        if(duty_cycle_percent > 1):
-            #set the percent to 100
-            duty_cycle_percent = 1
-        #duty_cycle_percent parameter value below is 0
-        elif(duty_cycle_percent < 0):
-            #set the percent to 0
+        max_cycle = 500000
+        
+        if duty_cycle_percent > 100:
+            duty_cycle_percent = 100
+        elif duty_cycle_percent < 0:
             duty_cycle_percent = 0
-
-        duty_cycle_cmd = "echo " + self.duty_cycle + " > " + PWM_PATH + "/pwm0/duty_cycle"
-        os.system(duty_cycle_cmd)
-
-
-
+        
+        modified_cycle = (int) (max_cycle * duty_cycle_percent / 100)
+        
+        os.system(f"echo {modified_cycle} > /sys/class/pwm/pwmchip0/pwm0/duty_cycle")
+        
+        
