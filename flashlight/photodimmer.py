@@ -3,6 +3,7 @@ import sys
 import os
 import adc_test
 import utilities
+sys.path.insert(0, '../utilities')
 pwm = utilities.HW_PWM(2000)
 
 import RPi.GPIO as GPIO
