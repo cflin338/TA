@@ -1,68 +1,49 @@
-import RPi.GPIO as GPIO
-import spidev
+
+
 import time
 import sys
 import os
+import RPi.GPIO as GPIO
+import spidev
 sys.path.insert(0, '/home/pi/Documents/TA-1/utilities')
 
-import utilities
-GPIO.setmode(GPIO.BOARD)
-
-BUTTON_0_PIN = 16
-
-GPIO.setup(BUTTON_0_PIN, GPIO.IN)
-
-#resistor values in dark 10.5k ambient 1.156K light 95
 spi = spidev.SpiDev()
 spi.open(0,0)
-
-# Settings (for example)
 spi.max_speed_hz = 100000
 
+sys.path.insert(0, '../utilities')
+import utilities
+
+BUTTON_0_PIN = 16
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(BUTTON_0_PIN, GPIO.IN)
+
 pwm = utilities.HW_PWM(2000)
-minValue = 0
-maxValue = 0
+
 print('Cover the photosensor and press the push button')
-while maxValue == 0:
-    channel = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=1000, bouncetime = 100)
-    if channel is None:
-         maxValue = 0
-    else:   
-        to_send = [1, 128, 0]
-        output_vals = spi.xfer(to_send)
-        adc_val = (output_vals[1] << 8) + output_vals[2]
-        maxValue = (adc_val/1023)*3.3
-        print(maxValue)
+GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+return_value = spi.xfer([0x01,0b10000000, 0x00])
+dark_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
+print(dark_value)
 
 print('Shine a flashlight on the photosensor and press the push button')
-while minValue == 0:
-    channel = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=1000, bouncetime = 100)
-    if channel is None:
-        minValue = 0
-    else:   
-        to_send = [1, 128, 0]
-        output_vals = spi.xfer(to_send)
-        adc_val = (output_vals[1] << 8) + output_vals[2]
-        minValue = (adc_val/1023)*3.3
-        print(minValue)
+GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+return_value = spi.xfer([0x01,0b10000000, 0x00])
+light_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
+print(light_value)
+
 
 try:
     while True:
-        to_send = [1, 128, 0]
-        output_vals = spi.xfer(to_send)
-        adc_val = (output_vals[1] << 8) + output_vals[2]
-        currentValue = (adc_val/1023)*3.3
-        if currentValue < minValue:
-            currentValue = minValue
-        if currentValue > maxValue:
-            currentValue = maxValue
-        pwmValue = ((maxValue - currentValue)/(maxValue - minValue))*100
-        pwm.set_duty_cycle(pwmValue)
-        time.sleep(.001)
+        return_value = spi.xfer([0x01,0b10000000, 0x00])
+        adc_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
+        print(adc_value)
+        duty_cycle_current = (adc_value - light_value)/(dark_value-light_value)*100
+        print(duty_cycle_current)
+        pwm.set_duty_cycle(duty_cycle_current)
+        time.sleep(0.01)
 
 except KeyboardInterrupt:
     print('Got Keyboard Interrupt. Cleaning up and exiting')
-    time.sleep(1)
-    print('turning off light')
     pwm.set_duty_cycle(0.0)
     sys.exit()
