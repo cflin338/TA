@@ -1,63 +1,48 @@
-
 import time
 import sys
-import spidev
-import RPi.GPIO as GPIO
-
-sys.path.insert(0, '../utilities')
+import os
+import adc_test
 import utilities
-
-BUTTON_0_PIN = 16
-LED_0_PIN = 18
-
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(BUTTON_0_PIN, GPIO.IN)
-
 pwm = utilities.HW_PWM(2000)
 
-spi = spidev.SpiDev()
-spi.open(0, 0)
-spi.max_speed_hz = 100000
+import RPi.GPIO as GPIO
+import sys
 
-recieving_list = [0x00, 0x00, 0x00]
-dark_input_value = 0b0
-bright_input_value = 0b0
-current_input_vaue = 0b0
+BUTTON_0_PIN = 40   
+
+GPIO.setmode(GPIO.BOARD)
+
+GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
 
 try:
-    print("Cover the photosensor and press the push button")
-    while GPIO.input(BUTTON_0_PIN) is not GPIO.HIGH:
-        sending_list = [0b00000001, 0b10000000, 0x00]
-        recieving_list = spi.xfer(sending_list)
-        dark_input_value = recieving_list[2] + ((recieving_list[1] & 0b00000011) << 8)
-        time.sleep(.01)
+    ''' GET MIN'''
+    print(f'Cover the photosensor and press the push button')
+    GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+    minimum,min_v = adc_test.read_adc_ch0()
+
+    '''GET MAX'''
+    print(f'Shine a flashlight on the photosensor and press the push button')
+    GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+    maximum,max_v = adc_test.read_adc_ch0()
     
-    while GPIO.input(BUTTON_0_PIN) is not GPIO.LOW:
-        time.sleep(.01)
-    
-    print("Shine a flashlight on the photosensor and press the push button")
-    while GPIO.input(BUTTON_0_PIN) is not GPIO.HIGH:
-        sending_list = [0b00000001, 0b10000000, 0x00]
-        recieving_list = spi.xfer(sending_list)
-        bright_input_value = recieving_list[2] + ((recieving_list[1] & 0b00000011) << 8)
-        time.sleep(.01)
-    
-    print("Engaging the LED!")
-    pwm_value = 0.0
-    
+    '''SET CONVERSION RATE'''
+
     while True:
-        pwm.set_duty_cycle(pwm_value)
-        #print("Light on!")
-        
-        sending_list = [0b00000001, 0b10000000, 0x00]
-        recieving_list = spi.xfer(sending_list)
-        current_input_vaue = recieving_list[2] + ((recieving_list[1] & 0b00000011) << 8)
-        
-        pwm_value = (current_input_vaue - bright_input_value) / ((dark_input_value - bright_input_value) / 100)
-        
-        time.sleep(.01)
+        val, trash = adc_test.read_adc_ch0()
+        percent = 100-(((val-minimum)/(maximum-minimum))*100)
+        pwm.set_duty_cycle(percent)
+        time.sleep(0.001)
+    
 
 except KeyboardInterrupt:
-    print('Got Keyboard Interrupt. Cleaning up and exiting')
-    pwm.set_duty_cycle(0.0)
+    print("\nKeyboard interrupt received.")
+    pwm.set_duty_cycle(0)
+    GPIO.cleanup()
     sys.exit()
+
+
+
+
+
+
