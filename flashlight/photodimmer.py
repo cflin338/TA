@@ -1,51 +1,63 @@
 import time
-import sys
-sys.path.insert(0, '/home/pi/Documents/TA-1/utilities')
-sys.path.insert(0, '/home/pi/Documents/TA-1/adc_test')
-
 import os
-import adc_test
-import utilities
-pwm = utilities.HW_PWM(2000)
-
-import RPi.GPIO as GPIO
 import sys
+import spidev
+import RPi.GPIO as GPIO
 
-BUTTON_0_PIN = 40   
+sys.path.insert(0, '../utilities')
+import utilities as u
+pwm = u.HW_PWM(2000)
 
 GPIO.setmode(GPIO.BOARD)
+BUTTON_0_PIN = 16
+GPIO.setup(BUTTON_0_PIN, GPIO.IN)
 
-GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+bus = 0
+device = 0
 
+spi = spidev.SpiDev()
+spi.open(bus, device)
+
+spi.max_speed_hz = 100000
 
 try:
-    ''' GET MIN'''
-    print(f'Cover the photosensor and press the push button')
-    GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
-    minimum,min_v = adc_test.read_adc_ch0()
-
-    '''GET MAX'''
-    print(f'Shine a flashlight on the photosensor and press the push button')
-    GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
-    maximum,max_v = adc_test.read_adc_ch0()
+    print("Cover the photosensor and press the push button")
+    #wait for user to find max_adc
+    button_input = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=20000, bouncetime=10)
+    if button_input:
+        mosi_data = [1, 0b10000000, 0b00000000]
+        miso_data = spi.xfer(mosi_data)
+        
+        max_adc = ((0b00000011 and miso_data[1]) << 8) + miso_data[2]
+        
+        
+    print("Shine a flashlight on the photosensor and press the push button")
+    #wait for user to find min_adc
+    button_input = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=20000, bouncetime=10)
+    if button_input:
+        mosi_data = [1, 0b10000000, 0b00000000]
+        miso_data = spi.xfer(mosi_data)
+        
+        min_adc = ((0b00000011 and miso_data[1]) << 8) + miso_data[2]
     
-    '''SET CONVERSION RATE'''
-
+    
+    adc_diff = (max_adc - min_adc) / 100
+    
+    
     while True:
-        val, trash = adc_test.read_adc_ch0()
-        percent = 100-(((val-minimum)/(maximum-minimum))*100)
-        pwm.set_duty_cycle(percent)
-        time.sleep(0.001)
+        mosi_data = [1, 0b10000000, 0b00000000]
+        miso_data = spi.xfer(mosi_data)
+
+        # Use return value to calculate the raw ADC value
+        adc_val = ((0b00000011 and miso_data[1]) << 8) + miso_data[2]
+        
+        pwm_val = (adc_val - min_adc) / adc_diff
+        pwm.set_duty_cycle(pwm_val)
+
+        time.sleep(0.01)
     
-
+    
 except KeyboardInterrupt:
-    print("\nKeyboard interrupt received.")
-    pwm.set_duty_cycle(0)
-    GPIO.cleanup()
+    print('Got Keyboard Interrupt. Cleaning up and exiting')
+    pwm.set_duty_cycle(0.0)
     sys.exit()
-
-
-
-
-
-
