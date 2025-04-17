@@ -1,90 +1,68 @@
+import RPi.GPIO as GPIO
+import spidev
 import time
 import sys
 import os
-import RPi.GPIO as GPIO
-import spidev
+sys.path.insert(0, '/home/pi/WataseRPIFiles/WataseRPIFiles-1/utilities')
+import utilities
 
-
-# INITIALIZATIONS
 GPIO.setmode(GPIO.BOARD)
-GPIO.setwarnings(False)
 
 BUTTON_0_PIN = 16
-LED_0_PIN = 12
 
-GPIO.setup(LED_0_PIN, GPIO.OUT)
-GPIO.output(LED_0_PIN, GPIO.LOW)
 GPIO.setup(BUTTON_0_PIN, GPIO.IN)
-GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-pwm = GPIO.PWM(LED_0_PIN, 2000)
-pwm.start(0)
-
+#resistor values in dark 10.5k ambient 1.156K light 95
 spi = spidev.SpiDev()
-spi.open(0, 0)
-spi.max_speed_hz = 1000000
+spi.open(0,0)
 
-previous = GPIO.LOW
-current  = GPIO.LOW
+# Settings (for example)
+spi.max_speed_hz = 100000
 
-# Initializing States
-COVER_PHOTO_SENSOR_STATE = True
-SHINE_FLASHLIGHT_STATE   = False
-LED_LIGHT_LEVELS_STATE   = False
-
-
+pwm = utilities.HW_PWM(2000)
+minValue = 0
+maxValue = 0
 print('Cover the photosensor and press the push button')
+while maxValue == 0:
+    channel = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=1000, bouncetime = 100)
+    if channel is None:
+         maxValue = 0
+    else:   
+        to_send = [1, 128, 0]
+        output_vals = spi.xfer(to_send)
+        adc_val = (output_vals[1] << 8) + output_vals[2]
+        maxValue = (adc_val/1023)*3.3
+        print(maxValue)
+
+print('Shine a flashlight on the photosensor and press the push button')
+while minValue == 0:
+    channel = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=1000, bouncetime = 100)
+    if channel is None:
+        minValue = 0
+    else:   
+        to_send = [1, 128, 0]
+        output_vals = spi.xfer(to_send)
+        adc_val = (output_vals[1] << 8) + output_vals[2]
+        minValue = (adc_val/1023)*3.3
+        print(minValue)
 
 try:
-    while COVER_PHOTO_SENSOR_STATE:
-        current = GPIO.input(BUTTON_0_PIN)
-        GPIO.output(LED_0_PIN, GPIO.LOW)
-
-        mosi_data = [0b00000001, 0b10000000, 0b00000000]
-        miso_data = spi.xfer(mosi_data)
-        maximum = (mosi_data[1] << 8) + mosi_data[2]
-        
-        if ((current == GPIO.HIGH) and (previous == GPIO.LOW)):
-            COVER_PHOTO_SENSOR_STATE = False
-            SHINE_FLASHLIGHT_STATE   = True
-            print('Shine a flashlight on the photosensor and press the push button')
-
-        previous = current
-        time.sleep(0.01)
-    
-
-    while SHINE_FLASHLIGHT_STATE:
-        current = GPIO.input(BUTTON_0_PIN)
-
-        if ((current == GPIO.HIGH) and (previous == GPIO.LOW)):
-            SHINE_FLASHLIGHT_STATE = False
-            LED_LIGHT_LEVELS_STATE = True
-
-        mosi_data = [0b00000001, 0b10000000, 0b00000000]
-        miso_data = spi.xfer(mosi_data)
-        minimum = (mosi_data[1] << 8) + mosi_data[2]
-
-        previous = current
-        time.sleep(0.01)
-
-
-    while LED_LIGHT_LEVELS_STATE:
-        mosi_data = [0b00000001, 0b10000000, 0b00000000]
-        miso_data = spi.xfer(mosi_data)
-        led_brightness = (mosi_data[1] << 8) + mosi_data[2]
-
-        led_brightness = max(min(led_brightness, maximum), minimum)
-
-        if (maximum != minimum):
-            light_level = ((led_brightness - maximum) / (minimum - maximum)) * 100
-            pwm.ChangeDutyCycle(100 - light_level)
-        
-        time.sleep(0.01)
+    while True:
+        to_send = [1, 128, 0]
+        output_vals = spi.xfer(to_send)
+        adc_val = (output_vals[1] << 8) + output_vals[2]
+        currentValue = (adc_val/1023)*3.3
+        if currentValue < minValue:
+            currentValue = minValue
+        if currentValue > maxValue:
+            currentValue = maxValue
+        pwmValue = ((maxValue - currentValue)/(maxValue - minValue))*100
+        pwm.set_duty_cycle(pwmValue)
+        time.sleep(.001)
 
 except KeyboardInterrupt:
     print('Got Keyboard Interrupt. Cleaning up and exiting')
-    pwm.ChangeDutyCycle(0)
-    GPIO.output(LED_0_PIN, GPIO.LOW)
-    GPIO.cleanup()
+    time.sleep(1)
+    print('turning off light')
+    pwm.set_duty_cycle(0.0)
     sys.exit()
-    
