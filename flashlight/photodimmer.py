@@ -3,9 +3,9 @@ import spidev
 import time
 import sys
 import os
-sys.path.insert(0, '/home/pi/WataseRPIFiles/WataseRPIFiles-1/utilities')
-import utilities
+sys.path.insert(0, '/home/pi/Documents/TA-1/utilities')
 
+import utilities
 GPIO.setmode(GPIO.BOARD)
 
 BUTTON_0_PIN = 16
