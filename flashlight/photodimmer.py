@@ -1,46 +1,57 @@
+import RPi.GPIO as GPIO
 import time
 import sys
-import os
-import RPi.GPIO as GPIO
 import spidev
-
-spi = spidev.SpiDev()
-spi.open(0,0)
-spi.max_speed_hz = 100000
 
 sys.path.insert(0, '../utilities')
 import utilities
 
-BUTTON_0_PIN = 16
+# read ADC function
+def get_ADC(spi):
+    mosi_data = [0b00000001, 0b10000000, 0b00000000]
+    miso_data = spi.xfer(mosi_data)
+
+    upper = mosi_data[1] & 0b00000011
+    upper = upper << 8
+    raw_ADC = upper + mosi_data[2]
+
+    return raw_ADC
+
+
+# configure button
+GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
+BUTTON_0_PIN = 16
 GPIO.setup(BUTTON_0_PIN, GPIO.IN)
 
+# configure pwm
 pwm = utilities.HW_PWM(2000)
 
-print('Cover the photosensor and press the push button')
-GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
-return_value = spi.xfer([0x01,0b10000000, 0x00])
-dark_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
-print(dark_value)
-
-print('Shine a flashlight on the photosensor and press the push button')
-GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
-return_value = spi.xfer([0x01,0b10000000, 0x00])
-light_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
-print(light_value)
-
+# configure spi for ADC
+spi = spidev.SpiDev()
+spi.open(0, 0)
+spi.max_speed_hz = 100000
 
 try:
-    while True:
-        return_value = spi.xfer([0x01,0b10000000, 0x00])
-        adc_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
-        print(adc_value)
-        duty_cycle_current = (adc_value - light_value)/(dark_value-light_value)*100
-        print(duty_cycle_current)
-        pwm.set_duty_cycle(duty_cycle_current)
-        time.sleep(0.01)
+    # calibrate dark
+    print("Cover the photosensor and press the push button")
+    GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+    MAX_ADC = get_ADC(spi)
+
+    #calibrate light
+    print("Shine a flashlight on the photosensor and press the push button")
+    GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+    MIN_ADC = get_ADC(spi)
+
+    while(True):
+        ADC_val = get_ADC(spi)
+        duty_cycle_percent = (100/(MAX_ADC - MIN_ADC))*(ADC_val - MIN_ADC)
+        pwm.set_duty_cycle(duty_cycle_percent)
+
+        time.sleep(0.001)
 
 except KeyboardInterrupt:
-    print('Got Keyboard Interrupt. Cleaning up and exiting')
+    print('\nGot Keyboard Interrupt. Cleaning up and exiting')
     pwm.set_duty_cycle(0.0)
+    GPIO.cleanup()
     sys.exit()
