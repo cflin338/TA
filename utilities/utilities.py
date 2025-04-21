@@ -36,16 +36,15 @@ class HW_PWM:
         time.sleep(0.5)
 
     def set_duty_cycle(self, duty_cycle_percent):
-        # TODO: Complete this function
-        self.duty_cycle_percent = duty_cycle_percent
-        self.duty_cycle = int((self.period * duty_cycle_percent) / 100.0)
-        self.duty_cycle = str(self.duty_cycle)
-
-        if (duty_cycle_percent > 1):
-            duty_cycle_percent = 1
-        elif (duty_cycle_percent < 0):
-            duty_cycle_percent = 0
+        if duty_cycle_percent > 100:
+            self.duty_cycle_percent = 100
+            self.duty_cycle = self.period
+        elif duty_cycle_percent < 0:
+            self.duty_cycle_percent = duty_cycle_percent
+            self.duty_cycle = 0
+        else:
+            self.duty_cycle_percent = duty_cycle_percent
+            self.duty_cycle = self.period * (duty_cycle_percent/100)
+        duty_cycle_cmd = "echo " + str(int(self.duty_cycle)) + " > /sys/class/pwm/pwmchip0/pwm0/duty_cycle"
         
-        duty_cycle_cmd = "echo " + self.duty_cycle + " > " + PWM_PATH + "/pwm0/duty_cycle"
         os.system(duty_cycle_cmd)
-

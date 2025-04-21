@@ -1,90 +1,66 @@
 import time
 import sys
 import os
-import RPi.GPIO as GPIO
 import spidev
-
-
-# INITIALIZATIONS
-GPIO.setmode(GPIO.BOARD)
-GPIO.setwarnings(False)
-
-BUTTON_0_PIN = 16
-LED_0_PIN = 12
-
-GPIO.setup(LED_0_PIN, GPIO.OUT)
-GPIO.output(LED_0_PIN, GPIO.LOW)
-GPIO.setup(BUTTON_0_PIN, GPIO.IN)
-GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-pwm = GPIO.PWM(LED_0_PIN, 2000)
-pwm.start(0)
-
 spi = spidev.SpiDev()
 spi.open(0, 0)
-spi.max_speed_hz = 1000000
 
-previous = GPIO.LOW
-current  = GPIO.LOW
+sys.path.insert(0, '../utilities')
+import utilities
+import RPi.GPIO as GPIO
 
-# Initializing States
-COVER_PHOTO_SENSOR_STATE = True
-SHINE_FLASHLIGHT_STATE   = False
-LED_LIGHT_LEVELS_STATE   = False
+pwm = utilities.HW_PWM(2000)
+
+spi.max_speed_hz = 100000
+mosi_data = [1, 128, 0]
+miso_data = spi.xfer(mosi_data)
 
 
-print('Cover the photosensor and press the push button')
+BUTTON_0_PIN = 16
+LED_0_PIN = 18
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
 
+max_val = 0
+min_val = 0
 try:
-    while COVER_PHOTO_SENSOR_STATE:
-        current = GPIO.input(BUTTON_0_PIN)
-        GPIO.output(LED_0_PIN, GPIO.LOW)
-
-        mosi_data = [0b00000001, 0b10000000, 0b00000000]
-        miso_data = spi.xfer(mosi_data)
-        maximum = (mosi_data[1] << 8) + mosi_data[2]
+    print("Cover the photosensor and press the push button")
+    while True:
         
-        if ((current == GPIO.HIGH) and (previous == GPIO.LOW)):
-            COVER_PHOTO_SENSOR_STATE = False
-            SHINE_FLASHLIGHT_STATE   = True
-            print('Shine a flashlight on the photosensor and press the push button')
+        pressed = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout = 100, bouncetime = 10)
+        if pressed is not None:
+             mosi_data = [1, 128, 0]
+             miso_data = spi.xfer(mosi_data)
+             max_val = (miso_data[1] << 8) + miso_data[2]
+             #print(max_val)
+             break
+    print("Shine a flashlight on the photosensor and press the push button")
+    time.sleep(0.5)
+    while True:
+        pressed = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout = 100, bouncetime = 10)
+        if pressed is not None:
+             mosi_data = [1, 128, 0]
+             miso_data = spi.xfer(mosi_data)
+             min_val = (miso_data[1] << 8) + miso_data[2]
+             #print(min_val)
+             break
 
-        previous = current
-        time.sleep(0.01)
     
-
-    while SHINE_FLASHLIGHT_STATE:
-        current = GPIO.input(BUTTON_0_PIN)
-
-        if ((current == GPIO.HIGH) and (previous == GPIO.LOW)):
-            SHINE_FLASHLIGHT_STATE = False
-            LED_LIGHT_LEVELS_STATE = True
-
-        mosi_data = [0b00000001, 0b10000000, 0b00000000]
+    factor = 1
+    while True:
+        mosi_data = [1, 128, 0]
         miso_data = spi.xfer(mosi_data)
-        minimum = (mosi_data[1] << 8) + mosi_data[2]
-
-        previous = current
-        time.sleep(0.01)
-
-
-    while LED_LIGHT_LEVELS_STATE:
-        mosi_data = [0b00000001, 0b10000000, 0b00000000]
-        miso_data = spi.xfer(mosi_data)
-        led_brightness = (mosi_data[1] << 8) + mosi_data[2]
-
-        led_brightness = max(min(led_brightness, maximum), minimum)
-
-        if (maximum != minimum):
-            light_level = ((led_brightness - maximum) / (minimum - maximum)) * 100
-            pwm.ChangeDutyCycle(100 - light_level)
+        ADC = (miso_data[1] << 8) + miso_data[2]
+        #print(ADC-min_val)
+        pwm_value = (ADC-min_val) / ((max_val - min_val)/100)
+        #print(pwm_value)
+        pwm.set_duty_cycle(pwm_value)
         
-        time.sleep(0.01)
+        
+        time.sleep(.01)
 
 except KeyboardInterrupt:
-    print('Got Keyboard Interrupt. Cleaning up and exiting')
-    pwm.ChangeDutyCycle(0)
-    GPIO.output(LED_0_PIN, GPIO.LOW)
+    print(" Got Keyboard Interrupt. Cleaning up and exiting")
+    pwm.set_duty_cycle(0.0)
     GPIO.cleanup()
     sys.exit()
-    
