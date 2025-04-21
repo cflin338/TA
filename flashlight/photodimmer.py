@@ -1,58 +1,29 @@
+try:
+    import RPi.GPIO as GPIO
+except RuntimeError:
+    print("Error importing RPi.GPIO! This is probably because you need superuser privileges. You can achieve this by using 'sudo' to run your script")
 import time
-import os
 import sys
+import os
 import spidev
-import RPi.GPIO as GPIO
 
 sys.path.insert(0, '../utilities')
-import utilities as u
-pwm = u.HW_PWM(2000)
+import utilities
 
-GPIO.setmode(GPIO.BOARD)
+# Constants
 BUTTON_0_PIN = 16
+
+# Press button setup
+GPIO.setmode(GPIO.BOARD)
 GPIO.setup(BUTTON_0_PIN, GPIO.IN)
 
+# SPI set up
 bus = 0
 device = 0
-
 spi = spidev.SpiDev()
 spi.open(bus, device)
-
-spi.max_speed_hz = 100000
-
-try:
-    print("Cover the photosensor and press the push button")
-    #wait for user to find max_adc
-    button_input = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=20000, bouncetime=10)
-    if button_input:
-        mosi_data = [1, 0b10000000, 0b00000000]
-        miso_data = spi.xfer(mosi_data)
-        
-        max_adc = ((0b00000011 and miso_data[1]) << 8) + miso_data[2]
-        
-        
-    print("Shine a flashlight on the photosensor and press the push button")
-    #wait for user to find min_adc
-    button_input = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=20000, bouncetime=10)
-    if button_input:
-        mosi_data = [1, 0b10000000, 0b00000000]
-        miso_data = spi.xfer(mosi_data)
-        
-        min_adc = ((0b00000011 and miso_data[1]) << 8) + miso_data[2]
-    
-    
-    adc_diff = (max_adc - min_adc) / 100
-    
-    
-    while True:
-        mosi_data = [1, 0b10000000, 0b00000000]
-        miso_data = spi.xfer(mosi_data)
-
-        # Use return value to calculate the raw ADC value
-        adc_val = ((0b00000011 and miso_data[1]) << 8) + miso_data[2]
-        
-        pwm_val = (adc_val - min_adc) / adc_diff
-        pwm.set_duty_cycle(pwm_val)
+spi.max_speed_hz = 1000000
+to_send = [0x01, 0b10000000, 0x0]
 
         time.sleep(0.01)
     
