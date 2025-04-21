@@ -37,7 +37,10 @@ class HW_PWM:
             duty_cycle_percent = 100
         if duty_cycle_percent <= 0:
             duty_cycle_percent = 0
+
         
+
         echo_value = duty_cycle_percent*5000
         duty_cycle_cmd = "echo " + str(int(echo_value)) + " > " + PWM_PATH + "/pwm0/duty_cycle" 
+        print(duty_cycle_cmd)
         os.system(duty_cycle_cmd)
