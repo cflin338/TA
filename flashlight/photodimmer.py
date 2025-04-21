@@ -1,66 +1,63 @@
+try:
+    import RPi.GPIO as GPIO
+except RuntimeError:
+    print("Error importing RPi.GPIO! This is probably because you need superuser privileges. You can achieve this by using 'sudo' to run your script")
 import time
 import sys
 import os
 import spidev
-spi = spidev.SpiDev()
-spi.open(0, 0)
 
 sys.path.insert(0, '../utilities')
 import utilities
-import RPi.GPIO as GPIO
+
+# Constants
+BUTTON_0_PIN = 16
+
+# Press button setup
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(BUTTON_0_PIN, GPIO.IN)
+
+# SPI set up
+bus = 0
+device = 0
+spi = spidev.SpiDev()
+spi.open(bus, device)
+spi.max_speed_hz = 1000000
+to_send = [0x01, 0b10000000, 0x0]
 
 pwm = utilities.HW_PWM(2000)
 
-spi.max_speed_hz = 100000
-mosi_data = [1, 128, 0]
-miso_data = spi.xfer(mosi_data)
+print("Cover the photosensor and press the push button")
+GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime = 25)
+to_send = [0x01, 0b10000000, 0x0]
+spi_data = spi.xfer(to_send)
+photosensor_max = spi_data[2] + (spi_data[1]*256)
+time.sleep(.1)
+
+print("Shine a flashlight on th ephotosensor and press the push button")
+GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime = 25)
+to_send = [0x01, 0b10000000, 0x0]
+spi_data = spi.xfer(to_send)
+photosensor_min = spi_data[2] + (spi_data[1]*256)
+time.sleep(.1)
 
 
-BUTTON_0_PIN = 16
-LED_0_PIN = 18
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(BUTTON_0_PIN, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-
-max_val = 0
-min_val = 0
 try:
-    print("Cover the photosensor and press the push button")
     while True:
+        to_send = [0x01, 0b10000000, 0x0]
+        spi_data = spi.xfer(to_send)
+        digital_value = spi_data[2] + (spi_data[1]*256)
+        pwm_value = ((digital_value-photosensor_min) / (photosensor_max-photosensor_min)) * 100
+        if (digital_value > photosensor_max):
+            pwm.set_duty_cycle(100)
+        elif (digital_value < photosensor_min):
+            pwm.set_duty_cycle(0)
+        else:
+            pwm.set_duty_cycle(pwm_value)
         
-        pressed = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout = 100, bouncetime = 10)
-        if pressed is not None:
-             mosi_data = [1, 128, 0]
-             miso_data = spi.xfer(mosi_data)
-             max_val = (miso_data[1] << 8) + miso_data[2]
-             #print(max_val)
-             break
-    print("Shine a flashlight on the photosensor and press the push button")
-    time.sleep(0.5)
-    while True:
-        pressed = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout = 100, bouncetime = 10)
-        if pressed is not None:
-             mosi_data = [1, 128, 0]
-             miso_data = spi.xfer(mosi_data)
-             min_val = (miso_data[1] << 8) + miso_data[2]
-             #print(min_val)
-             break
 
-    
-    factor = 1
-    while True:
-        mosi_data = [1, 128, 0]
-        miso_data = spi.xfer(mosi_data)
-        ADC = (miso_data[1] << 8) + miso_data[2]
-        #print(ADC-min_val)
-        pwm_value = (ADC-min_val) / ((max_val - min_val)/100)
-        #print(pwm_value)
-        pwm.set_duty_cycle(pwm_value)
-        
-        
-        time.sleep(.01)
 
 except KeyboardInterrupt:
-    print(" Got Keyboard Interrupt. Cleaning up and exiting")
+    print('Got Keyboard Interrupt. Cleaning up and exiting')
     pwm.set_duty_cycle(0.0)
-    GPIO.cleanup()
     sys.exit()
