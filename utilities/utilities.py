@@ -26,28 +26,18 @@ class HW_PWM:
         #print(duty_cycle_cmd)
         os.system(duty_cycle_cmd)
         time.sleep(0.5)
-
         print('Enable PWM0')
         print(enable_cmd)
         os.system(enable_cmd)
         time.sleep(0.5)
 
     def set_duty_cycle(self, duty_cycle_percent):
-        # TODO: Complete this function
-        self.duty_cycle_percent = duty_cycle_percent
-        self.duty_cycle = str(int((duty_cycle_percent * self.period) / 100.0))
-
-        #if duty_cycle_percent parameter value is above 100
-        if(duty_cycle_percent > 1):
-            #set the percent to 100
-            duty_cycle_percent = 1
-        #duty_cycle_percent parameter value below is 0
-        elif(duty_cycle_percent < 0):
-            #set the percent to 0
+    # TODO: Complete this function
+        if duty_cycle_percent > 100:
+            duty_cycle_percent = 100
+        if duty_cycle_percent <= 0:
             duty_cycle_percent = 0
-
-        duty_cycle_cmd = "echo " + self.duty_cycle + " > " + PWM_PATH + "/pwm0/duty_cycle"
+        
+        echo_value = duty_cycle_percent*5000
+        duty_cycle_cmd = "echo " + str(int(echo_value)) + " > " + PWM_PATH + "/pwm0/duty_cycle" 
         os.system(duty_cycle_cmd)
-
-
-
