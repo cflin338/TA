@@ -1,61 +1,44 @@
-try:
-    import RPi.GPIO as GPIO
-except RuntimeError:
-    print("Error importing RPi.GPIO! This is probably because you need superuser privileges. You can achieve this by using 'sudo' to run your script")
 import time
 import sys
 import os
+import RPi.GPIO as GPIO
 import spidev
+
+spi = spidev.SpiDev()
+spi.open(0,0)
+spi.max_speed_hz = 100000
 
 sys.path.insert(0, '../utilities')
 import utilities
 
-# Constants
 BUTTON_0_PIN = 16
-
-# Press button setup
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(BUTTON_0_PIN, GPIO.IN)
 
-# SPI set up
-bus = 0
-device = 0
-spi = spidev.SpiDev()
-spi.open(bus, device)
-spi.max_speed_hz = 1000000
-to_send = [0x01, 0b10000000, 0x0]
-
 pwm = utilities.HW_PWM(2000)
 
-print("Cover the photosensor and press the push button")
-GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime = 25)
-to_send = [0x01, 0b10000000, 0x0]
-spi_data = spi.xfer(to_send)
-photosensor_max = spi_data[2] + (spi_data[1]*256)
-time.sleep(.1)
+print('Cover the photosensor and press the push button')
+GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+return_value = spi.xfer([0x01,0b10000000, 0x00])
+dark_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
+print(dark_value)
 
-print("Shine a flashlight on th ephotosensor and press the push button")
-GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime = 25)
-to_send = [0x01, 0b10000000, 0x0]
-spi_data = spi.xfer(to_send)
-photosensor_min = spi_data[2] + (spi_data[1]*256)
-time.sleep(.1)
+print('Shine a flashlight on the photosensor and press the push button')
+GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime=10)
+return_value = spi.xfer([0x01,0b10000000, 0x00])
+light_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
+print(light_value)
 
 
 try:
     while True:
-        to_send = [0x01, 0b10000000, 0x0]
-        spi_data = spi.xfer(to_send)
-        digital_value = spi_data[2] + (spi_data[1]*256)
-        pwm_value = ((digital_value-photosensor_min) / (photosensor_max-photosensor_min)) * 100
-        if (digital_value > photosensor_max):
-            pwm.set_duty_cycle(100)
-        elif (digital_value < photosensor_min):
-            pwm.set_duty_cycle(0)
-        else:
-            pwm.set_duty_cycle(pwm_value)
-        
-
+        return_value = spi.xfer([0x01,0b10000000, 0x00])
+        adc_value = ((return_value[1]<<8)+return_value[2]) & (0b0000001111111111)
+        print(adc_value)
+        duty_cycle_current = (adc_value - light_value)/(dark_value-light_value)*100
+        print(duty_cycle_current)
+        pwm.set_duty_cycle(duty_cycle_current)
+        time.sleep(0.01)
 
 except KeyboardInterrupt:
     print('Got Keyboard Interrupt. Cleaning up and exiting')

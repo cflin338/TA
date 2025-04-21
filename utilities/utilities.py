@@ -39,12 +39,10 @@ class HW_PWM:
         # TODO: Complete this function
         if duty_cycle_percent > 100:
             duty_cycle_percent = 100
-        elif duty_cycle_percent < 0:
+        if duty_cycle_percent < 0:
             duty_cycle_percent = 0
 
-        self.duty_cycle_percent = duty_cycle_percent / 100.0
-        self.duty_cycle = self.period * (self.duty_cycle_percent)
-
-        duty_cycle_cmd = "echo " + str(int(self.duty_cycle)) + " > " + PWM_PATH + "/pwm0/duty_cycle"
+        echo_number = duty_cycle_percent*5000
+        duty_cycle_cmd = "echo "+ str(int(echo_number)) + " > " + PWM_PATH + "/pwm0/duty_cycle"
         print(duty_cycle_cmd)
         os.system(duty_cycle_cmd)
