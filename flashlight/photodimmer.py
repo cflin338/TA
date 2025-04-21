@@ -1,63 +1,68 @@
-try:
-    import RPi.GPIO as GPIO
-except RuntimeError:
-    print("Error importing RPi.GPIO! This is probably because you need superuser privileges. You can achieve this by using 'sudo' to run your script")
+import RPi.GPIO as GPIO
+import spidev
 import time
 import sys
 import os
-import spidev
-
-sys.path.insert(0, '../utilities')
+sys.path.insert(0, '/home/pi/WataseRPIFiles/WataseRPIFiles-1/utilities')
 import utilities
 
-# Constants
+GPIO.setmode(GPIO.BOARD)
+
 BUTTON_0_PIN = 16
 
-# Press button setup
-GPIO.setmode(GPIO.BOARD)
 GPIO.setup(BUTTON_0_PIN, GPIO.IN)
 
-# SPI set up
-bus = 0
-device = 0
+#resistor values in dark 10.5k ambient 1.156K light 95
 spi = spidev.SpiDev()
-spi.open(bus, device)
-spi.max_speed_hz = 1000000
-to_send = [0x01, 0b10000000, 0x0]
+spi.open(0,0)
+
+# Settings (for example)
+spi.max_speed_hz = 100000
 
 pwm = utilities.HW_PWM(2000)
+minValue = 0
+maxValue = 0
+print('Cover the photosensor and press the push button')
+while maxValue == 0:
+    channel = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=1000, bouncetime = 100)
+    if channel is None:
+         maxValue = 0
+    else:   
+        to_send = [1, 128, 0]
+        output_vals = spi.xfer(to_send)
+        adc_val = (output_vals[1] << 8) + output_vals[2]
+        maxValue = (adc_val/1023)*3.3
+        print(maxValue)
 
-print("Cover the photosensor and press the push button")
-GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime = 25)
-to_send = [0x01, 0b10000000, 0x0]
-spi_data = spi.xfer(to_send)
-photosensor_max = spi_data[2] + (spi_data[1]*256)
-time.sleep(.1)
-
-print("Shine a flashlight on th ephotosensor and press the push button")
-GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, bouncetime = 25)
-to_send = [0x01, 0b10000000, 0x0]
-spi_data = spi.xfer(to_send)
-photosensor_min = spi_data[2] + (spi_data[1]*256)
-time.sleep(.1)
-
+print('Shine a flashlight on the photosensor and press the push button')
+while minValue == 0:
+    channel = GPIO.wait_for_edge(BUTTON_0_PIN, GPIO.RISING, timeout=1000, bouncetime = 100)
+    if channel is None:
+        minValue = 0
+    else:   
+        to_send = [1, 128, 0]
+        output_vals = spi.xfer(to_send)
+        adc_val = (output_vals[1] << 8) + output_vals[2]
+        minValue = (adc_val/1023)*3.3
+        print(minValue)
 
 try:
     while True:
-        to_send = [0x01, 0b10000000, 0x0]
-        spi_data = spi.xfer(to_send)
-        digital_value = spi_data[2] + (spi_data[1]*256)
-        pwm_value = ((digital_value-photosensor_min) / (photosensor_max-photosensor_min)) * 100
-        if (digital_value > photosensor_max):
-            pwm.set_duty_cycle(100)
-        elif (digital_value < photosensor_min):
-            pwm.set_duty_cycle(0)
-        else:
-            pwm.set_duty_cycle(pwm_value)
-        
-
+        to_send = [1, 128, 0]
+        output_vals = spi.xfer(to_send)
+        adc_val = (output_vals[1] << 8) + output_vals[2]
+        currentValue = (adc_val/1023)*3.3
+        if currentValue < minValue:
+            currentValue = minValue
+        if currentValue > maxValue:
+            currentValue = maxValue
+        pwmValue = ((maxValue - currentValue)/(maxValue - minValue))*100
+        pwm.set_duty_cycle(pwmValue)
+        time.sleep(.001)
 
 except KeyboardInterrupt:
     print('Got Keyboard Interrupt. Cleaning up and exiting')
+    time.sleep(1)
+    print('turning off light')
     pwm.set_duty_cycle(0.0)
     sys.exit()
