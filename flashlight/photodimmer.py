@@ -1,6 +1,8 @@
 import time
 import sys
 import os
+sys.path.insert(0, '../utilities')
+sys.path.insert(0, '../adc_test')
 import adc_test
 import utilities
 pwm = utilities.HW_PWM(2000)
@@ -8,7 +10,7 @@ pwm = utilities.HW_PWM(2000)
 import RPi.GPIO as GPIO
 import sys
 
-BUTTON_0_PIN = 40   
+BUTTON_0_PIN = 16   
 
 GPIO.setmode(GPIO.BOARD)
 
