@@ -1,75 +1,62 @@
-import spidev
-import RPi.GPIO as GPIO
 import time
 import sys
-import os
+import spidev
+import RPi.GPIO as GPIO
+
 sys.path.insert(0, '../utilities')
 import utilities
 
-def getLightLevel():
-    try:
-        #Stall until rising edge detected
-        GPIO.wait_for_edge(BREADBOARD_BUTTON_PIN, GPIO.RISING)
-        #Only runs in this case
-        time.sleep(1)
-        to_send = [0b00000001, 0b10000000, 0b00000000]
-        #Read device
-        dataList = spi.xfer(to_send)
-        return (256 * dataList[1] + dataList[2])
-    except KeyboardInterrupt:
-        endProgram()
+BUTTON_0_PIN = 16
+LED_0_PIN = 18
 
-def endProgram():
-    print('Got Keyboard Interrupt. Cleaning up and exiting')
-    pwm.set_duty_cycle(0.0)
-    GPIO.cleanup()
-    sys.exit()
-
-# "Macros"
-BUS = 0
-DEVICE = 0
-MAX_SPEED_HZ = 100000
-BYTES_TO_READ = 36
-BREADBOARD_LED_PIN = 12
-BREADBOARD_BUTTON_PIN = 16
-
-# Settings
-spi = spidev.SpiDev()
-spi.open(BUS, DEVICE)
 GPIO.setmode(GPIO.BOARD)
-GPIO.setup(BREADBOARD_BUTTON_PIN, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-spi.max_speed_hz = MAX_SPEED_HZ
-spi.mode = 0b01
+GPIO.setup(BUTTON_0_PIN, GPIO.IN)
 
-#Initialize running vars
-state = 0
-# Create PWM object
 pwm = utilities.HW_PWM(2000)
 
-#Get dark val
-print("Cover the photosensor and press the push button")
-darkVal = getLightLevel()
-#print("DARKVAL: " + str(darkVal))
+spi = spidev.SpiDev()
+spi.open(0, 0)
+spi.max_speed_hz = 100000
 
-#Get light val
-print("Shine a flashlight on the photosensor and press the push button")
-lightVal = getLightLevel()
-#print("LIGHTVAL: " + str(lightVal))
+recieving_list = [0x00, 0x00, 0x00]
+dark_input_value = 0b0
+bright_input_value = 0b0
+current_input_vaue = 0b0
 
 try:
-    while(1):
-        #8 start bits then SGL/DIFF, D2, D1, D0. Select CH0 by sending 0, 0, 0
-        to_send = [0b00000001, 0b10000000, 0b00000000]
-        #Read device
-        dataList = spi.xfer(to_send)
-        #Convert list to voltage val (no idea why 310 works here)
-        adcVal = (256 * dataList[1] + dataList[2])
-        PWMVal = (100 / (darkVal - lightVal)) * adcVal
-        if(PWMVal > 100):
-            PWMVal = 100
-        elif(PWMVal < 0):
-            PWMVal = 0
-        pwm.set_duty_cycle(PWMVal)
+    print("Cover the photosensor and press the push button")
+    while GPIO.input(BUTTON_0_PIN) is not GPIO.HIGH:
+        sending_list = [0b00000001, 0b10000000, 0x00]
+        recieving_list = spi.xfer(sending_list)
+        dark_input_value = recieving_list[2] + ((recieving_list[1] & 0b00000011) << 8)
         time.sleep(.01)
+    
+    while GPIO.input(BUTTON_0_PIN) is not GPIO.LOW:
+        time.sleep(.01)
+    
+    print("Shine a flashlight on the photosensor and press the push button")
+    while GPIO.input(BUTTON_0_PIN) is not GPIO.HIGH:
+        sending_list = [0b00000001, 0b10000000, 0x00]
+        recieving_list = spi.xfer(sending_list)
+        bright_input_value = recieving_list[2] + ((recieving_list[1] & 0b00000011) << 8)
+        time.sleep(.01)
+    
+    print("Engaging the LED!")
+    pwm_value = 0.0
+    
+    while True:
+        pwm.set_duty_cycle(pwm_value)
+        #print("Light on!")
+        
+        sending_list = [0b00000001, 0b10000000, 0x00]
+        recieving_list = spi.xfer(sending_list)
+        current_input_vaue = recieving_list[2] + ((recieving_list[1] & 0b00000011) << 8)
+        
+        pwm_value = (current_input_vaue - bright_input_value) / ((dark_input_value - bright_input_value) / 100)
+        
+        time.sleep(.01)
+
 except KeyboardInterrupt:
-    endProgram()
+    print('Got Keyboard Interrupt. Cleaning up and exiting')
+    pwm.set_duty_cycle(0.0)
+    sys.exit()
