@@ -2,7 +2,7 @@ import time
 import sys
 import os
 sys.path.insert(0, '/home/pi/Documents/TA/utilities')
-sys.path.insert(0, '/home/pi/Documents/adc_test')
+sys.path.insert(0, '/home/pi/Documents/TA/adc_test')
 
 import adc_test
 import utilities
