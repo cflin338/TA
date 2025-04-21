@@ -1,6 +1,9 @@
 import time
 import sys
 import os
+sys.path.insert(0, '/home/pi/Documents/TA/utilities')
+sys.path.insert(0, '/home/pi/Documents/adc_test')
+
 import adc_test
 import utilities
 pwm = utilities.HW_PWM(2000)
